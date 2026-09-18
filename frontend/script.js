@@ -1,15 +1,18 @@
 // QuizForge frontend logic.
 //
-// This handles the setup screen (collecting notes + question count),
-// sends a request to the backend's POST /api/quiz endpoint, and renders
-// whatever quiz comes back. Scoring and the results screen are not
-// implemented yet (Phase 6) — submitting the quiz form currently does
-// nothing.
+// This handles all three screens: the setup screen (collecting notes +
+// question count and generating a quiz), the quiz screen (answering
+// questions and scoring them), and the results screen (showing the score
+// and per-question feedback). Scoring happens entirely in the browser —
+// the quiz questions (including correct answers) are already sitting in
+// `currentQuiz` from the /api/quiz response, so no extra API call is
+// needed to grade the student's answers.
 
 const API_URL = "http://127.0.0.1:8000/api/quiz";
 
 const setupScreen = document.getElementById("setup-screen");
 const quizScreen = document.getElementById("quiz-screen");
+const resultsScreen = document.getElementById("results-screen");
 
 const quizForm = document.getElementById("quiz-form");
 const notesTextarea = document.getElementById("notes");
@@ -20,13 +23,20 @@ const loadingMessage = document.getElementById("loading-message");
 
 const answersForm = document.getElementById("answers-form");
 const quizQuestionsContainer = document.getElementById("quiz-questions");
+const quizErrorMessage = document.getElementById("quiz-error-message");
+
+const scoreHeading = document.getElementById("score-heading");
+const resultsList = document.getElementById("results-list");
+const restartButton = document.getElementById("restart-button");
+
+// The questions from the most recently generated quiz (as returned by
+// the backend). This is the only piece of "state" the app keeps — a
+// plain variable holding the array is enough for a project this size.
+let currentQuiz = [];
 
 quizForm.addEventListener("submit", handleGenerateQuizSubmit);
-
-answersForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  // Scoring is added in Phase 6 — for now, Submit Quiz does nothing.
-});
+answersForm.addEventListener("submit", handleSubmitQuizSubmit);
+restartButton.addEventListener("click", handleRestart);
 
 async function handleGenerateQuizSubmit(event) {
   event.preventDefault();
@@ -59,7 +69,8 @@ async function handleGenerateQuizSubmit(event) {
     }
 
     const quiz = await response.json();
-    renderQuiz(quiz.questions);
+    currentQuiz = quiz.questions;
+    renderQuiz(currentQuiz);
     showQuizScreen();
   } catch (error) {
     console.error(error);
@@ -87,6 +98,22 @@ function hideError() {
 function showQuizScreen() {
   setupScreen.hidden = true;
   quizScreen.hidden = false;
+  hideQuizError();
+}
+
+function showResultsScreen() {
+  quizScreen.hidden = true;
+  resultsScreen.hidden = false;
+}
+
+function showQuizError(message) {
+  quizErrorMessage.textContent = message;
+  quizErrorMessage.hidden = false;
+}
+
+function hideQuizError() {
+  quizErrorMessage.textContent = "";
+  quizErrorMessage.hidden = true;
 }
 
 // Builds the DOM for every question and drops it into #quiz-questions.
@@ -145,4 +172,98 @@ function createQuestionElement(question, index) {
   });
 
   return questionBlock;
+}
+
+// Reads the selected radio button for each question, scores it against
+// currentQuiz, and shows the results screen. Blocks submission (with an
+// inline message, no alert()) if any question was left unanswered.
+function handleSubmitQuizSubmit(event) {
+  event.preventDefault();
+
+  const selectedAnswers = currentQuiz.map((question, index) => {
+    const checkedInput = document.querySelector(
+      `input[name="question-${index}"]:checked`
+    );
+    return checkedInput ? checkedInput.value : null;
+  });
+
+  const hasUnansweredQuestion = selectedAnswers.some(
+    (answer) => answer === null
+  );
+  if (hasUnansweredQuestion) {
+    showQuizError("Please answer all questions before submitting.");
+    return;
+  }
+  hideQuizError();
+
+  const results = currentQuiz.map((question, index) => ({
+    question: question.question,
+    selectedAnswer: selectedAnswers[index],
+    correctAnswer: question.correct_answer,
+    isCorrect: selectedAnswers[index] === question.correct_answer,
+  }));
+
+  const correctCount = results.filter((result) => result.isCorrect).length;
+
+  renderResults(results, correctCount, currentQuiz.length);
+  showResultsScreen();
+}
+
+// Builds the DOM for the results screen: the score heading, plus one
+// block per question showing the student's answer, the correct answer,
+// and whether they got it right.
+function renderResults(results, correctCount, totalCount) {
+  scoreHeading.textContent = `${correctCount} / ${totalCount} correct`;
+
+  resultsList.innerHTML = "";
+
+  results.forEach((result, index) => {
+    const resultBlock = document.createElement("div");
+    resultBlock.className = `result-block ${
+      result.isCorrect ? "correct" : "incorrect"
+    }`;
+
+    const questionNumber = document.createElement("p");
+    questionNumber.className = "question-number";
+    questionNumber.textContent = `Question ${index + 1}`;
+
+    const questionText = document.createElement("p");
+    questionText.className = "question-text";
+    questionText.textContent = result.question;
+
+    const yourAnswer = document.createElement("p");
+    yourAnswer.textContent = `Your answer: ${result.selectedAnswer}`;
+
+    const correctAnswer = document.createElement("p");
+    correctAnswer.textContent = `Correct answer: ${result.correctAnswer}`;
+
+    const outcome = document.createElement("p");
+    outcome.textContent = result.isCorrect ? "Correct ✓" : "Incorrect ✗";
+
+    resultBlock.appendChild(questionNumber);
+    resultBlock.appendChild(questionText);
+    resultBlock.appendChild(yourAnswer);
+    resultBlock.appendChild(correctAnswer);
+    resultBlock.appendChild(outcome);
+
+    resultsList.appendChild(resultBlock);
+  });
+}
+
+// "Create Another Quiz": clears all quiz/results state and returns to
+// the setup screen. The notes textarea is deliberately left alone so the
+// student can generate another quiz from the same notes if they want.
+function handleRestart() {
+  currentQuiz = [];
+
+  quizQuestionsContainer.innerHTML = "";
+  resultsList.innerHTML = "";
+  scoreHeading.textContent = "";
+
+  hideQuizError();
+  hideError();
+
+  resultsScreen.hidden = true;
+  quizScreen.hidden = true;
+  setupScreen.hidden = false;
 }
