@@ -32,16 +32,25 @@ app.add_middleware(
 def generate_quiz(request: QuizRequest) -> QuizResponse:
     """Generate a quiz from the given study notes using the LLM.
 
-    Phase 4 note: error handling here is intentionally minimal — any
-    failure (LLM call, malformed JSON, or a quiz that fails Pydantic
-    validation) becomes one generic 502 error. We are not distinguishing
-    between failure types yet; that's Phase 5.
+    Two clear error paths, both without leaking internal details:
+    - RuntimeError means the server itself is misconfigured (e.g. no
+      LLM_API_KEY set) — that's not something the user can fix by
+      retrying, so it gets a 500.
+    - Anything else (a Groq API error, invalid JSON from the LLM, a quiz
+      that fails Pydantic validation, or the wrong number of questions)
+      means this specific generation attempt failed — that's a 502, and
+      retrying may well work.
     """
     try:
         return quiz_generator.generate_quiz(
             notes=request.notes,
             question_count=request.question_count,
         )
+    except RuntimeError as error:
+        raise HTTPException(
+            status_code=500,
+            detail="The server is not configured correctly. Please contact the site owner.",
+        ) from error
     except Exception as error:
         raise HTTPException(
             status_code=502,

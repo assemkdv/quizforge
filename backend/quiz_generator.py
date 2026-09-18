@@ -27,10 +27,11 @@ MODEL_NAME = "qwen/qwen3.8-27b"
 def generate_quiz(notes: str, question_count: int) -> QuizResponse:
     """Ask the LLM for a quiz and return it as a validated QuizResponse.
 
-    Raises an exception (a missing API key, json.JSONDecodeError,
-    pydantic.ValidationError, or a groq API error) if the call fails or
-    the LLM's response doesn't match our expected format. main.py is
-    responsible for turning that into a clean HTTP error for the frontend.
+    Raises an exception if anything goes wrong: a missing API key
+    (RuntimeError), a Groq API failure, invalid JSON (json.JSONDecodeError),
+    a quiz that fails Pydantic validation, or one that returns the wrong
+    number of questions (ValueError). main.py is responsible for turning
+    any of these into a clean HTTP error for the frontend.
     """
     api_key = os.environ.get("LLM_API_KEY")
     if not api_key:
@@ -54,8 +55,15 @@ def generate_quiz(notes: str, question_count: int) -> QuizResponse:
 
     raw_text = response.choices[0].message.content
     quiz_data = json.loads(raw_text)
+    quiz = QuizResponse(**quiz_data)
 
-    return QuizResponse(**quiz_data)
+    if len(quiz.questions) != question_count:
+        raise ValueError(
+            f"Expected {question_count} questions from the LLM, "
+            f"got {len(quiz.questions)}"
+        )
+
+    return quiz
 
 
 def build_quiz_prompt(notes: str, question_count: int) -> str:
