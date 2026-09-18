@@ -7,10 +7,26 @@ test the API through /docs before any LLM integration exists.
 """
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from models import QuizQuestion, QuizRequest, QuizResponse
 
 app = FastAPI(title="QuizForge API")
+
+# The frontend is served from a different origin than this API during
+# local development (e.g. http://localhost:5500 vs http://127.0.0.1:8000),
+# so the browser blocks fetch() responses unless we explicitly allow it.
+# We only allow the specific local dev origins the frontend runs on —
+# not "*" — since that would let any website call this API.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
+    ],
+    allow_methods=["POST"],
+    allow_headers=["Content-Type"],
+)
 
 
 @app.post("/api/quiz", response_model=QuizResponse)
