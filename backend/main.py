@@ -1,15 +1,14 @@
 """FastAPI application for QuizForge.
 
-Exposes a single endpoint, POST /api/quiz, which will eventually call an
-LLM to generate a quiz from study notes. For now (Phase 2), it returns a
-fixed, hardcoded quiz so we can verify the request/response shape and
-test the API through /docs before any LLM integration exists.
+Exposes a single endpoint, POST /api/quiz, which sends the user's study
+notes to an LLM (via quiz_generator.py) and returns a validated quiz.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from models import QuizQuestion, QuizRequest, QuizResponse
+import quiz_generator
+from models import QuizRequest, QuizResponse
 
 app = FastAPI(title="QuizForge API")
 
@@ -31,35 +30,20 @@ app.add_middleware(
 
 @app.post("/api/quiz", response_model=QuizResponse)
 def generate_quiz(request: QuizRequest) -> QuizResponse:
-    """Return a quiz for the given study notes.
+    """Generate a quiz from the given study notes using the LLM.
 
-    Phase 2 note: this ignores `request.notes` and `request.question_count`
-    and always returns the same hardcoded quiz below. That's intentional —
-    it lets us confirm the API contract (what a request/response looks
-    like) works end-to-end before wiring up a real LLM call.
+    Phase 4 note: error handling here is intentionally minimal — any
+    failure (LLM call, malformed JSON, or a quiz that fails Pydantic
+    validation) becomes one generic 502 error. We are not distinguishing
+    between failure types yet; that's Phase 5.
     """
-    return QuizResponse(
-        questions=[
-            QuizQuestion(
-                question="Which property requires (a, a) to belong to R?",
-                options=["Reflexive", "Symmetric", "Transitive", "Antisymmetric"],
-                correct_answer="Reflexive",
-            ),
-            QuizQuestion(
-                question=(
-                    "Which property requires that if (a, b) is in R, "
-                    "then (b, a) is also in R?"
-                ),
-                options=["Reflexive", "Symmetric", "Transitive", "Antisymmetric"],
-                correct_answer="Symmetric",
-            ),
-            QuizQuestion(
-                question=(
-                    "Which property requires that if (a, b) and (b, c) are "
-                    "in R, then (a, c) is also in R?"
-                ),
-                options=["Reflexive", "Symmetric", "Transitive", "Antisymmetric"],
-                correct_answer="Transitive",
-            ),
-        ]
-    )
+    try:
+        return quiz_generator.generate_quiz(
+            notes=request.notes,
+            question_count=request.question_count,
+        )
+    except Exception as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not generate the quiz. Please try again.",
+        ) from error
