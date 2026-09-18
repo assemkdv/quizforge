@@ -3,3 +3,4 @@ uvicorn[standard]
 pydantic
 groq
 python-dotenv
+pytest
