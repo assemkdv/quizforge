@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QuizForge</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <main class="page">
+    <header class="page-header">
+      <h1>QuizForge</h1>
+      <p class="tagline">Turn your study notes into a quiz.</p>
+    </header>
+
+    <!-- Setup screen: notes input + question count + generate button.
+         This is the only screen visible on page load. -->
+    <section id="setup-screen" class="card">
+      <form id="quiz-form">
+        <label for="notes">Paste your notes:</label>
+        <textarea
+          id="notes"
+          rows="10"
+          placeholder="Paste your study notes here..."
+        ></textarea>
+
+        <label for="question-count">Number of questions:</label>
+        <select id="question-count">
+          <option value="5" selected>5</option>
+          <option value="10">10</option>
+        </select>
+
+        <p id="error-message" class="error-message" hidden></p>
+        <p id="loading-message" class="loading-message" hidden>Generating your quiz...</p>
+
+        <button type="submit" id="generate-button">Generate Quiz</button>
+      </form>
+    </section>
+
+    <!-- Quiz screen: filled in with questions by script.js once a quiz
+         has been generated. Hidden until then. -->
+    <section id="quiz-screen" class="card" hidden>
+      <form id="answers-form">
+        <div id="quiz-questions"></div>
+        <button type="submit" id="submit-quiz-button">Submit Quiz</button>
+      </form>
+    </section>
+
+    <!-- Results screen: filled in with the score and per-question
+         feedback by script.js after the quiz is submitted. -->
+    <section id="results-screen" class="card" hidden>
+      <h2 id="score-heading"></h2>
+      <div id="results-list"></div>
+      <button type="button" id="restart-button">Create Another Quiz</button>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
